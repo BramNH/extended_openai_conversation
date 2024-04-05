@@ -1,4 +1,5 @@
 """The OpenAI Conversation integration."""
+
 from __future__ import annotations
 
 import json
@@ -165,7 +166,6 @@ class OpenAIAgent(conversation.AbstractConversationAgent):
 
         if user_input.conversation_id in self.history:
             conversation_id = user_input.conversation_id
-            messages = self.history[conversation_id]
         else:
             conversation_id = ulid.ulid()
             user_input.conversation_id = conversation_id
@@ -215,8 +215,7 @@ class OpenAIAgent(conversation.AbstractConversationAgent):
                 response=intent_response, conversation_id=conversation_id
             )
 
-        messages.append(query_response.message.model_dump(exclude_none=True))
-        self.history[conversation_id] = messages
+        messages.append(query_response.message.model_dump())
 
         self.hass.bus.async_fire(
             EVENT_CONVERSATION_FINISHED,
@@ -397,7 +396,7 @@ class OpenAIAgent(conversation.AbstractConversationAgent):
         exposed_entities,
         n_requests,
     ) -> OpenAIQueryResponse:
-        function_name = message.function_call.name
+        function_name = message.function_call.name.strip()
         function = next(
             (s for s in self.get_functions() if s["spec"]["name"] == function_name),
             None,
@@ -450,9 +449,9 @@ class OpenAIAgent(conversation.AbstractConversationAgent):
         exposed_entities,
         n_requests,
     ) -> OpenAIQueryResponse:
-        messages.append(message.model_dump(exclude_none=True))
+        messages.append(message.model_dump())
         for tool in message.tool_calls:
-            function_name = tool.function.name
+            function_name = tool.function.name.strip()
             function = next(
                 (s for s in self.get_functions() if s["spec"]["name"] == function_name),
                 None,
@@ -465,14 +464,6 @@ class OpenAIAgent(conversation.AbstractConversationAgent):
                     function,
                 )
 
-                messages.append(
-                    {
-                        "tool_call_id": tool.id,
-                        "role": "tool",
-                        "name": function_name,
-                        "content": str(result),
-                    }
-                )
             else:
                 raise FunctionNotFound(function_name)
         return await self.query(user_input, messages, exposed_entities, n_requests)
